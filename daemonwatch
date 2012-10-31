@@ -1,51 +1,57 @@
 #!/bin/bash
+if [ `id -u` -eq 0 ]; then
 
-# Ativa os arrays associativos. Coloquei todos como associativos... Vai que uma hora eu preciso
-declare -A known_pid_files
+	# Ativa os arrays associativos. Coloquei todos como associativos... Vai que uma hora eu preciso
+	declare -A known_pid_files
 
-# Diretório dos arquivos pids
-pid_dir='/var/run/'
+	verbose=0
+	stop=0
 
-# Lista de arquivos de pid para acompanhar
-known_pid_files=(
-  ["apache2"]=$pid_dir"apache2.pid"
-  ["nginx"]=$pid_dir"nginx.pid"
-  ["mysql"]=$pid_dir"mysqld/mysqld.pid"
-  ["postgresql"]=$pid_dir"postgresql/9.1-main.pid"
-  ["mongodb"]="/var/lib/mongodb/mongod.lock"
-  ["memcached"]=$pid_dir"memcached.pid"
-  ["php-fpm"]=$pid_dir"php5-fpm.pid"
-)
+	# Lista de arquivos de pid para acompanhar
+	known_pid_files=(
+	  ["apache2"]=/var/run/apache2.pid
+	  ["nginx"]=/var/run/nginx.pid
+	  ["mysql"]=/var/run/mysqld/mysqld.pid
+	  ["postgresql"]=/var/run/postgresql/9.1-main.pid
+	  ["mongodb"]=/var/lib/mongodb/mongod.lock
+	  ["memcached"]=/var/run/memcached.pid
+	  ["php5-fpm"]=/var/run/php5-fpm.pid
+	)
 
-# Lista de daemons para acompanhar
-daemons_to_watch=( apache2 nginx mysql postgresql mongodb memcached php-fpm )
+	# Lista de daemons para acompanhar
+	daemons_to_watch=( apache2 nginx mysql postgresql mongodb memcached php5-fpm )
+
+	MENSAGEM="Uso: $(basename "$0") [-v | -h]
+	-v	Mostra informações dos processos de daemons ativos
+	-h	Mostra essa tela de ajuda e sai
+	-s	Pára todos os daemons acompnhados
+	"
+
+	case "$1" in
+		-v | --verbose) verbose=1 ;;
+		-s | --stop) stop=1 ;;
+		-h | --help)
+			echo "$MENSAGEM"
+			exit 0
+		;;
+	esac
 
 
-remove_daemons() {
 	for daemon in "${daemons_to_watch[@]}"; do
-		update-rc.d -f $daemon remove
-	done
-}
+		if [ $stop -eq 0 ]; then
+			if [ -s "${known_pid_files[$daemon]}" -a ! -d "${known_pid_files[$daemon]}" ]; then
+				PID=`cat "${known_pid_files[$daemon]}"`
 
-watch() {
-	contador=0
-
-	for daemon in "${daemons_to_watch[@]}"; do
-		if [ -s "${known_pid_files[$daemon]}" -a ! -d "${known_pid_files[$daemon]}" ]; then
-			cat "${known_pid_files[$daemon]}" | xargs echo -e " \033[32m-\033[0m $daemon \t \033[1;32mON\033[0m -"
-
-			let "contador += 1"
-		else 
-			echo -e " \033[32m-\033[0m $daemon \t \033[1;31mOFF\033[0m"
+				echo -e " \033[32m-\033[0m $daemon \t \033[1;32mON\033[0m"
+				test $verbose -gt 0 && ps --no-headers -F -p $PID
+			else 
+				echo -e " \033[32m-\033[0m $daemon \t \033[1;31mOFF\033[0m"
+			fi
+		else
+			service $daemon stop
 		fi
 
 	done
-
-	test $contador -eq 0  && echo -e "\t\033[32m*\033[0m Nenhum daemon acompanhado está ativo"
-}
-
-if [ `id -u` -eq 0 ]; then
-	watch
 else
 	echo "Voce deve executar este script como root!"
 fi
