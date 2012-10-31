@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Ativa os arrays associativos. Coloquei todos como associativos... Vai que uma hora eu preciso
+declare -A known_pid_files
+
+# Diretório dos arquivos pids
+pid_dir='/var/run/'
+
+# Lista de arquivos de pid para acompanhar
+known_pid_files=(
+  ["apache2"]=$pid_dir"apache2.pid"
+  ["nginx"]=$pid_dir"nginx.pid"
+  ["mysql"]=$pid_dir"mysqld/mysqld.pid"
+  ["postgresql"]=$pid_dir"postgresql/9.1-main.pid"
+  ["mongodb"]="/var/lib/mongodb/mongod.lock"
+  ["memcached"]=$pid_dir"memcached.pid"
+  ["php-fpm"]=$pid_dir"php5-fpm.pid"
+)
+
+# Lista de daemons para acompanhar
+daemons_to_watch=( apache2 nginx mysql postgresql mongodb memcached php-fpm )
+
+
+remove_daemons() {
+	for daemon in "${daemons_to_watch[@]}"; do
+		update-rc.d -f $daemon remove
+	done
+}
+
+watch() {
+	contador=0
+
+	for daemon in "${daemons_to_watch[@]}"; do
+		if [ -s "${known_pid_files[$daemon]}" -a ! -d "${known_pid_files[$daemon]}" ]; then
+			cat "${known_pid_files[$daemon]}" | xargs echo -e " \033[32m-\033[0m $daemon \t \033[1;32mON\033[0m -"
+
+			let "contador += 1"
+		else 
+			echo -e " \033[32m-\033[0m $daemon \t \033[1;31mOFF\033[0m"
+		fi
+
+	done
+
+	test $contador -eq 0  && echo -e "\t\033[32m*\033[0m Nenhum daemon acompanhado está ativo"
+}
+
+if [ `id -u` -eq 0 ]; then
+	watch
+else
+	echo "Voce deve executar este script como root!"
+fi
