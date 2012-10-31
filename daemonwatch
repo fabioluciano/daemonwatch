@@ -48,7 +48,7 @@ if [ `id -u` -eq 0 ]; then
 				echo -e " \033[32m-\033[0m $daemon \t \033[1;31mOFF\033[0m"
 			fi
 		else
-			service $daemon stop
+			service $daemon stop >& /dev/null
 		fi
 
 	done
